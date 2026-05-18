@@ -121,6 +121,14 @@ button[data-baseweb="tab"] {
 
 # ── Session state initialisation ────────────────────────────────────────────
 
+DEFAULT_CATEGORY_TYPES = {
+    "Alimentação": "Saída", "Transporte": "Saída", "Moradia": "Saída",
+    "Saúde": "Saída", "Lazer": "Saída", "Compras": "Saída",
+    "Educação": "Saída", "Serviços": "Saída", "Outros": "Saída",
+    "Receita": "Entrada",
+}
+
+
 def _init_state():
     defaults = {
         "transactions_df": pd.DataFrame(),
@@ -130,6 +138,8 @@ def _init_state():
         "wizard_step": 1,
         "historico": [],
         "custom_categories": [],
+        # {name: "Entrada" | "Saída"}
+        "category_types": dict(DEFAULT_CATEGORY_TYPES),
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -144,6 +154,17 @@ def _get_categories() -> list[str]:
     custom = st.session_state.get("custom_categories", [])
     merged = base + [c for c in custom if c not in base]
     return sorted(merged)
+
+
+def _categories_by_type(tipo: str) -> list[str]:
+    types = st.session_state.get("category_types", {})
+    all_cats = _get_categories()
+    filtered = [c for c in all_cats if types.get(c, "Saída") == tipo]
+    return filtered if filtered else all_cats
+
+
+def _get_cat_type(name: str) -> str:
+    return st.session_state.get("category_types", {}).get(name, "Saída")
 
 
 # ── Sidebar ──────────────────────────────────────────────────────────────────
@@ -358,7 +379,7 @@ def render_upload_tab():
             st.subheader(f"Revisar Entradas ({len(entradas)} transações)")
             st.caption("Confirme ou corrija a categoria de cada receita.")
 
-            categories = _get_categories()
+            categories = _categories_by_type("Entrada")
             edit_df = entradas[["date", "description", "value", "categoria"]].copy()
             edit_df["data"] = edit_df["date"].dt.strftime("%d/%m/%Y")
             edit_df["valor"] = edit_df["value"].abs()
@@ -407,7 +428,7 @@ def render_upload_tab():
             st.subheader(f"Revisar Saídas ({len(saidas)} transações)")
             st.caption("Confirme ou corrija a categoria de cada gasto.")
 
-            categories = _get_categories()
+            categories = _categories_by_type("Saída")
             edit_df = saidas[["date", "description", "value", "categoria"]].copy()
             edit_df["data"] = edit_df["date"].dt.strftime("%d/%m/%Y")
             edit_df["valor"] = edit_df["value"].abs()
@@ -589,6 +610,74 @@ def render_dashboard_tab():
             height=350,
         )
         st.plotly_chart(fig_trend, use_container_width=True)
+
+
+# ── Tab: Categorias ───────────────────────────────────────────────────────────
+
+def render_categorias_tab():
+    st.header("🏷️ Categorias")
+    st.caption("Crie e organize suas categorias. O tipo define em qual etapa elas aparecem.")
+
+    types = st.session_state.category_types
+    base_cats = get_all_categories()
+    custom_cats = st.session_state.custom_categories
+
+    # ── Criar nova categoria ──
+    with st.expander("➕ Nova categoria", expanded=True):
+        c1, c2, c3 = st.columns([3, 2, 1])
+        with c1:
+            novo_nome = st.text_input("Nome", key="cat_new_name", placeholder="Ex: Academia, Investimentos...")
+        with c2:
+            novo_tipo = st.selectbox("Tipo", ["Saída", "Entrada"], key="cat_new_type")
+        with c3:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("Adicionar", key="cat_add_btn", use_container_width=True):
+                nome = novo_nome.strip()
+                if nome and nome not in _get_categories():
+                    st.session_state.custom_categories.append(nome)
+                    st.session_state.category_types[nome] = novo_tipo
+                    st.rerun()
+                elif nome in _get_categories():
+                    st.warning(f'"{nome}" já existe.')
+
+    st.divider()
+
+    # ── Listar todas as categorias ──
+    all_cats = _get_categories()
+    entradas = [c for c in all_cats if types.get(c, "Saída") == "Entrada"]
+    saidas   = [c for c in all_cats if types.get(c, "Saída") == "Saída"]
+
+    for label, cats, tipo_val in [("📥 Entradas", entradas, "Entrada"), ("📤 Saídas", saidas, "Saída")]:
+        st.subheader(label)
+        for cat in cats:
+            is_custom = cat in custom_cats
+            c1, c2, c3 = st.columns([3, 2, 1])
+            with c1:
+                if is_custom:
+                    novo = st.text_input("", value=cat, key=f"cat_name_{cat}", label_visibility="collapsed")
+                else:
+                    st.markdown(f"**{cat}**")
+                    novo = cat
+            with c2:
+                tipo_atual = types.get(cat, "Saída")
+                novo_tipo = st.selectbox("", ["Saída", "Entrada"], index=0 if tipo_atual == "Saída" else 1,
+                                         key=f"cat_type_{cat}", label_visibility="collapsed")
+                if novo_tipo != tipo_atual:
+                    st.session_state.category_types[cat] = novo_tipo
+                    st.rerun()
+            with c3:
+                if is_custom:
+                    if st.button("✕", key=f"cat_del_{cat}", help="Remover"):
+                        st.session_state.custom_categories.remove(cat)
+                        st.session_state.category_types.pop(cat, None)
+                        st.rerun()
+                    if novo != cat and novo.strip():
+                        st.session_state.custom_categories[st.session_state.custom_categories.index(cat)] = novo.strip()
+                        st.session_state.category_types[novo.strip()] = st.session_state.category_types.pop(cat)
+                        st.rerun()
+                else:
+                    st.markdown("<span style='color:#9CA3AF;font-size:0.75rem'>padrão</span>", unsafe_allow_html=True)
+        st.markdown("")
 
 
 # ── Tab: Início ───────────────────────────────────────────────────────────────
@@ -929,8 +1018,8 @@ st.html("""
 </div>
 """)
 
-tab_inicio, tab_upload, tab_dashboard, tab_transactions, tab_historico = st.tabs(
-    ["🏠 Início", "📤 Upload", "📊 Dashboard", "📋 Transações", "📅 Histórico"]
+tab_inicio, tab_upload, tab_dashboard, tab_transactions, tab_historico, tab_categorias = st.tabs(
+    ["🏠 Início", "📤 Upload", "📊 Dashboard", "📋 Transações", "📅 Histórico", "🏷️ Categorias"]
 )
 
 with tab_inicio:
@@ -947,6 +1036,9 @@ with tab_transactions:
 
 with tab_historico:
     render_historico_tab()
+
+with tab_categorias:
+    render_categorias_tab()
 
 if st.session_state.get("_goto_upload"):
     st.session_state["_goto_upload"] = False
