@@ -457,7 +457,7 @@ def render_dashboard_tab():
         st.subheader("Evolução Mensal")
 
         monthly = (
-            df.groupby(["month", df["value"].apply(lambda v: "Receita" if v > 0 else "Despesa")])
+            df.groupby(["month", df["value"].apply(lambda v: "Receita" if v > 0 else "Despesa").rename("tipo")])
             ["value"]
             .sum()
             .abs()
