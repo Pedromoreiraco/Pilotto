@@ -210,6 +210,14 @@ def parse_excel(file_path: str) -> list[dict]:
 
         description = re.sub(r"\s+", " ", description).strip()
 
+        skip_keywords = [
+            "total", "saldo", "subtotal", "saldo anterior", "saldo atual",
+            "saldo final", "saldo inicial", "limite", "total de débitos",
+            "total de créditos", "total geral",
+        ]
+        if any(kw in description.lower() for kw in skip_keywords):
+            continue
+
         transactions.append({
             "date": date,
             "description": description,

@@ -47,13 +47,50 @@ MONTH_MAP = {
 }
 
 
-def _parse_value(raw: str) -> float:
-    raw = raw.strip().replace("R$", "").replace(" ", "")
+SKIP_DESCRIPTION_KEYWORDS = [
+    "total", "saldo", "subtotal", "saldo anterior", "saldo atual",
+    "saldo disponível", "saldo final", "saldo inicial", "limite",
+    "total de débitos", "total de créditos", "total geral",
+]
+
+INCOME_KEYWORDS = [
+    "salário", "salario", "pagamento recebido", "transferência recebida",
+    "transferencia recebida", "pix recebido", "ted recebida", "doc recebido",
+    "depósito", "deposito", "crédito em conta", "credito em conta",
+    "rendimento", "dividendo", "reembolso", "estorno", "devolução", "devolucao",
+]
+
+
+def _parse_value(raw: str) -> tuple[float, str | None]:
+    raw = raw.strip().replace("R$", "").replace("\xa0", "").replace(" ", "")
+    credit_flag = None
+    if raw.upper().endswith("C"):
+        credit_flag = "credit"
+        raw = raw[:-1]
+    elif raw.upper().endswith("D"):
+        credit_flag = "debit"
+        raw = raw[:-1]
     negative = raw.endswith("-") or raw.startswith("-")
     raw = raw.strip("+-")
     raw = raw.replace(".", "").replace(",", ".")
     value = float(raw)
-    return -abs(value) if negative else value
+    if credit_flag == "credit":
+        return abs(value), "credit"
+    if credit_flag == "debit":
+        return -abs(value), "debit"
+    return -abs(value) if negative else value, None
+
+
+def _should_skip(description: str) -> bool:
+    desc_lower = description.lower().strip()
+    return any(kw in desc_lower for kw in SKIP_DESCRIPTION_KEYWORDS)
+
+
+def _infer_type_from_description(description: str) -> str | None:
+    desc_lower = description.lower()
+    if any(kw in desc_lower for kw in INCOME_KEYWORDS):
+        return "credit"
+    return None
 
 
 def _parse_date(raw: str, year_hint: Optional[int] = None) -> Optional[datetime]:
@@ -118,7 +155,7 @@ def _parse_generic(text: str, year_hint: Optional[int]) -> list[dict]:
         r"\s+"
         r"(.{5,60}?)"
         r"\s+"
-        r"(R?\$?\s*-?\s*\d{1,3}(?:\.\d{3})*,\d{2}\s*[-+]?)"
+        r"(R?\$?\s*-?\s*\d{1,3}(?:\.\d{3})*,\d{2}\s*[-+CD]?)"
         r"(?:\s|$)",
         re.MULTILINE,
     )
@@ -129,20 +166,19 @@ def _parse_generic(text: str, year_hint: Optional[int]) -> list[dict]:
         if not date:
             continue
         try:
-            value = _parse_value(value_str)
+            value, type_hint = _parse_value(value_str)
         except (ValueError, AttributeError):
             continue
 
         description = re.sub(r"\s+", " ", description).strip()
-        if len(description) < 3:
+        if len(description) < 3 or _should_skip(description):
             continue
 
-        transactions.append({
-            "date": date,
-            "description": description,
-            "value": value,
-            "type": "credit" if value >= 0 else "debit",
-        })
+        tx_type = type_hint or _infer_type_from_description(description) or ("credit" if value >= 0 else "debit")
+        if tx_type == "credit":
+            value = abs(value)
+
+        transactions.append({"date": date, "description": description, "value": value, "type": tx_type})
 
     return transactions
 
@@ -154,7 +190,7 @@ def _parse_itau_format(text: str, year_hint: Optional[int]) -> list[dict]:
     for line in lines:
         line = line.strip()
         m = re.match(
-            r"(\d{2}/\d{2})\s+(.+?)\s+([\d\.]+,\d{2})([-+]?)\s*$", line
+            r"(\d{2}/\d{2})\s+(.+?)\s+([\d\.]+,\d{2})([-+CD]?)\s*$", line, re.IGNORECASE
         )
         if not m:
             continue
@@ -163,17 +199,19 @@ def _parse_itau_format(text: str, year_hint: Optional[int]) -> list[dict]:
         if not date:
             continue
         try:
-            value = _parse_value(value_str + sign)
+            value, type_hint = _parse_value(value_str + sign)
         except ValueError:
             continue
 
         description = re.sub(r"\s+", " ", description).strip()
-        transactions.append({
-            "date": date,
-            "description": description,
-            "value": value,
-            "type": "credit" if value >= 0 else "debit",
-        })
+        if _should_skip(description):
+            continue
+
+        tx_type = type_hint or _infer_type_from_description(description) or ("credit" if value >= 0 else "debit")
+        if tx_type == "credit":
+            value = abs(value)
+
+        transactions.append({"date": date, "description": description, "value": value, "type": tx_type})
 
     return transactions
 
@@ -197,23 +235,18 @@ def _parse_credit_card(text: str, year_hint: Optional[int]) -> list[dict]:
         if not date:
             continue
         try:
-            value = _parse_value(value_str)
+            value, _ = _parse_value(value_str)
         except ValueError:
             continue
 
         description = re.sub(r"\s+", " ", description).strip()
-        if len(description) < 3:
+        if len(description) < 3 or _should_skip(description):
             continue
 
-        if value > 0:
-            value = -value
+        tx_type = _infer_type_from_description(description) or "debit"
+        value = abs(value) if tx_type == "credit" else -abs(value)
 
-        transactions.append({
-            "date": date,
-            "description": description,
-            "value": value,
-            "type": "debit",
-        })
+        transactions.append({"date": date, "description": description, "value": value, "type": tx_type})
 
     return transactions
 
