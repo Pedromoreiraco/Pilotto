@@ -126,6 +126,7 @@ def _init_state():
         "uploaded_files_names": [],
         "api_key": os.getenv("ANTHROPIC_API_KEY", ""),
         "categorization_done": False,
+        "wizard_step": 1,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -166,6 +167,7 @@ with st.sidebar:
             st.session_state.transactions_df = pd.DataFrame()
             st.session_state.uploaded_files_names = []
             st.session_state.categorization_done = False
+            st.session_state.wizard_step = 1
             st.rerun()
     else:
         st.caption("Nenhum arquivo carregado ainda.")
@@ -239,102 +241,145 @@ def _color_value(value: float) -> str:
     return f'<span class="{cls}">{formatted}</span>'
 
 
-# ── Tab: Upload ───────────────────────────────────────────────────────────────
+# ── Tab: Upload (wizard) ──────────────────────────────────────────────────────
+
+def _wizard_progress(step: int):
+    steps = ["📤 Upload", "📥 Entradas", "📤 Saídas"]
+    cols = st.columns(len(steps))
+    for i, (col, label) in enumerate(zip(cols, steps), start=1):
+        if i < step:
+            col.success(f"✓ {label}")
+        elif i == step:
+            col.info(f"**→ {label}**")
+        else:
+            col.markdown(f"<span style='color:#9CA3AF'>{label}</span>", unsafe_allow_html=True)
+
 
 def render_upload_tab():
-    st.header("📤 Upload de Extratos")
-    st.markdown(
-        "Faça o upload dos seus extratos bancários ou faturas de cartão de crédito. "
-        "Formatos aceitos: **PDF**, **Excel (.xlsx)** e **CSV**."
-    )
+    step = st.session_state.wizard_step
 
-    uploaded_files = st.file_uploader(
-        "Arraste os arquivos ou clique para selecionar",
-        type=["pdf", "xlsx", "xls", "csv"],
-        accept_multiple_files=True,
-        label_visibility="collapsed",
-    )
+    _wizard_progress(step)
+    st.divider()
 
-    if uploaded_files:
-        new_files = [
-            f for f in uploaded_files
-            if f.name not in st.session_state.uploaded_files_names
-        ]
+    # ── Passo 1: Upload ──
+    if step == 1:
+        st.subheader("Suba seus extratos")
+        st.caption("Extrato da conta corrente e fatura do cartão — pode enviar os dois juntos.")
 
-        if new_files:
-            progress_bar = st.progress(0, text="Processando arquivos...")
-            new_dfs = []
-            errors = []
+        uploaded_files = st.file_uploader(
+            "Arraste os arquivos ou clique para selecionar",
+            type=["pdf", "xlsx", "xls", "csv"],
+            accept_multiple_files=True,
+            label_visibility="collapsed",
+        )
 
-            for idx, uploaded_file in enumerate(new_files):
-                progress_bar.progress(
-                    (idx + 1) / len(new_files),
-                    text=f"Processando {uploaded_file.name}...",
-                )
-                try:
-                    df = _process_file(uploaded_file)
-                    new_dfs.append(df)
-                    st.session_state.uploaded_files_names.append(uploaded_file.name)
-                except Exception as e:
-                    errors.append((uploaded_file.name, str(e)))
+        if uploaded_files:
+            new_files = [f for f in uploaded_files if f.name not in st.session_state.uploaded_files_names]
 
-            progress_bar.empty()
+            if new_files:
+                progress_bar = st.progress(0, text="Lendo arquivos...")
+                new_dfs, errors = [], []
 
-            for name, err in errors:
-                st.error(f"**{name}**: {err}")
+                for idx, uploaded_file in enumerate(new_files):
+                    progress_bar.progress((idx + 1) / len(new_files), text=f"Lendo {uploaded_file.name}...")
+                    try:
+                        new_dfs.append(_process_file(uploaded_file))
+                        st.session_state.uploaded_files_names.append(uploaded_file.name)
+                    except Exception as e:
+                        errors.append((uploaded_file.name, str(e)))
 
-            if new_dfs:
-                combined = pd.concat(new_dfs, ignore_index=True)
+                progress_bar.empty()
+                for name, err in errors:
+                    st.error(f"**{name}**: {err}")
 
-                if not st.session_state.transactions_df.empty:
-                    combined = pd.concat(
-                        [st.session_state.transactions_df, combined],
-                        ignore_index=True,
-                    )
-                    combined = combined.drop_duplicates(
-                        subset=["date", "description", "value"]
-                    ).reset_index(drop=True)
+                if new_dfs:
+                    combined = pd.concat(new_dfs, ignore_index=True)
+                    if not st.session_state.transactions_df.empty:
+                        combined = pd.concat(
+                            [st.session_state.transactions_df, combined], ignore_index=True
+                        ).drop_duplicates(subset=["date", "description", "value"]).reset_index(drop=True)
 
-                with st.spinner("Aplicando categorização..."):
-                    if "categoria" not in combined.columns:
-                        combined["categoria"] = None
+                    with st.spinner("Categorizando automaticamente..."):
+                        if "categoria" not in combined.columns:
+                            combined["categoria"] = None
+                        needs_cat = combined["categoria"].isna() | (combined["categoria"] == "")
+                        if needs_cat.any():
+                            sub_cat = _apply_categorization(combined[needs_cat].copy())
+                            combined.loc[needs_cat, "categoria"] = sub_cat["categoria"].values
 
-                    needs_cat = combined["categoria"].isna() | (combined["categoria"] == "")
-                    if needs_cat.any():
-                        sub = combined[needs_cat].copy()
-                        sub_cat = _apply_categorization(sub)
-                        combined.loc[needs_cat, "categoria"] = sub_cat["categoria"].values
+                    st.session_state.transactions_df = combined
+                    st.session_state.categorization_done = True
 
-                st.session_state.transactions_df = combined
-                st.session_state.categorization_done = True
-                st.success(
-                    f"✅ {len(new_dfs)} arquivo(s) processado(s) com sucesso! "
-                    f"{len(combined)} transações no total."
-                )
-                st.rerun()
+                    n_in = (combined["value"] > 0).sum()
+                    n_out = (combined["value"] <= 0).sum()
+                    st.success(f"✅ {len(combined)} transações reconhecidas — {n_in} entradas, {n_out} saídas.")
+                    st.session_state.wizard_step = 2
+                    st.rerun()
 
-    df = st.session_state.transactions_df
-    if not df.empty:
-        st.divider()
-        st.subheader(f"Prévia das Transações ({len(df)} registros)")
+    # ── Passo 2: Revisar Entradas ──
+    elif step == 2:
+        df = st.session_state.transactions_df
+        entradas = df[df["value"] > 0].copy()
 
-        preview_df = df.copy()
-        preview_df["data"] = preview_df["date"].dt.strftime("%d/%m/%Y")
-        preview_df["valor"] = preview_df["value"].apply(_format_currency)
-        preview_df["tipo"] = preview_df["type"].map({"debit": "Débito", "credit": "Crédito"})
-        preview_df["arquivo"] = preview_df["source"]
-        preview_df["categoria"] = preview_df["categoria"]
+        st.subheader(f"Revisar Entradas ({len(entradas)} transações)")
+        st.caption("Confirme ou corrija a categoria de cada receita.")
 
-        st.dataframe(
-            preview_df[["data", "description", "valor", "tipo", "categoria", "arquivo"]].rename(
-                columns={"description": "descrição"}
-            ),
+        categories = get_all_categories()
+        edit_df = entradas[["date", "description", "value", "categoria"]].copy()
+        edit_df["data"] = edit_df["date"].dt.strftime("%d/%m/%Y")
+        edit_df["valor"] = edit_df["value"].apply(_format_currency)
+        edit_df = edit_df[["data", "description", "valor", "categoria"]].rename(columns={"description": "descrição"})
+
+        edited = st.data_editor(
+            edit_df,
+            column_config={
+                "categoria": st.column_config.SelectboxColumn("Categoria", options=categories, required=True),
+                "data": st.column_config.TextColumn("Data", disabled=True),
+                "descrição": st.column_config.TextColumn("Descrição", disabled=True),
+                "valor": st.column_config.TextColumn("Valor", disabled=True),
+            },
             use_container_width=True,
             hide_index=True,
-            height=400,
+            height=420,
         )
-    else:
-        st.info("Nenhum dado carregado ainda. Faça o upload de um extrato para começar.")
+
+        if st.button("Confirmar Entradas →", use_container_width=True):
+            df.loc[df["value"] > 0, "categoria"] = edited["categoria"].values
+            st.session_state.transactions_df = df
+            st.session_state.wizard_step = 3
+            st.rerun()
+
+    # ── Passo 3: Revisar Saídas ──
+    elif step == 3:
+        df = st.session_state.transactions_df
+        saidas = df[df["value"] <= 0].copy()
+
+        st.subheader(f"Revisar Saídas ({len(saidas)} transações)")
+        st.caption("Confirme ou corrija a categoria de cada gasto.")
+
+        categories = get_all_categories()
+        edit_df = saidas[["date", "description", "value", "categoria"]].copy()
+        edit_df["data"] = edit_df["date"].dt.strftime("%d/%m/%Y")
+        edit_df["valor"] = edit_df["value"].apply(_format_currency)
+        edit_df = edit_df[["data", "description", "valor", "categoria"]].rename(columns={"description": "descrição"})
+
+        edited = st.data_editor(
+            edit_df,
+            column_config={
+                "categoria": st.column_config.SelectboxColumn("Categoria", options=categories, required=True),
+                "data": st.column_config.TextColumn("Data", disabled=True),
+                "descrição": st.column_config.TextColumn("Descrição", disabled=True),
+                "valor": st.column_config.TextColumn("Valor", disabled=True),
+            },
+            use_container_width=True,
+            hide_index=True,
+            height=420,
+        )
+
+        if st.button("Finalizar e Ver Dashboard →", use_container_width=True):
+            df.loc[df["value"] <= 0, "categoria"] = edited["categoria"].values
+            st.session_state.transactions_df = df
+            st.rerun()
 
 
 # ── Tab: Dashboard ────────────────────────────────────────────────────────────
