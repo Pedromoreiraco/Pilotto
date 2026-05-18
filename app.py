@@ -325,6 +325,21 @@ def render_upload_tab():
             n_in = (df["value"] > 0).sum()
             n_out = (df["value"] <= 0).sum()
             st.success(f"✅ {len(df)} transações reconhecidas — {n_in} entradas, {n_out} saídas.")
+
+            with st.expander("🔍 Inspecionar transações detectadas"):
+                debug_df = df.copy()
+                debug_df["data"] = debug_df["date"].dt.strftime("%d/%m/%Y")
+                debug_df["valor"] = debug_df["value"].apply(lambda v: f"+{_format_currency(v)}" if v > 0 else _format_currency(v))
+                st.dataframe(
+                    debug_df[["data", "description", "valor", "type", "source"]].rename(
+                        columns={"description": "descrição", "type": "tipo detectado", "source": "arquivo"}
+                    ),
+                    use_container_width=True,
+                    hide_index=True,
+                    height=300,
+                )
+                st.caption("tipo detectado: 'credit' = entrada  |  'debit' = saída")
+
             if st.button("Classificar Transações →", use_container_width=True):
                 st.session_state.wizard_step = 2
                 st.rerun()
