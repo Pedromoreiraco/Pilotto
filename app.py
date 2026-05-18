@@ -129,6 +129,7 @@ def _init_state():
         "categorization_done": False,
         "wizard_step": 1,
         "historico": [],
+        "custom_categories": [],
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -136,6 +137,13 @@ def _init_state():
 
 
 _init_state()
+
+
+def _get_categories() -> list[str]:
+    base = get_all_categories()
+    custom = st.session_state.get("custom_categories", [])
+    merged = base + [c for c in custom if c not in base]
+    return sorted(merged)
 
 
 # ── Sidebar ──────────────────────────────────────────────────────────────────
@@ -205,7 +213,7 @@ def _apply_categorization(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df
 
-    categories = get_all_categories()
+    categories = _get_categories()
     result_cats = []
 
     for _, row in df.iterrows():
@@ -335,11 +343,13 @@ def render_upload_tab():
             st.subheader(f"Revisar Entradas ({len(entradas)} transações)")
             st.caption("Confirme ou corrija a categoria de cada receita.")
 
-            categories = get_all_categories()
+            categories = _get_categories()
             edit_df = entradas[["date", "description", "value", "categoria"]].copy()
             edit_df["data"] = edit_df["date"].dt.strftime("%d/%m/%Y")
             edit_df["valor"] = edit_df["value"].abs().apply(_format_currency)
             edit_df = edit_df[["data", "description", "valor", "categoria"]].rename(columns={"description": "descrição"})
+
+            edit_df["_idx"] = entradas.index
 
             edited = st.data_editor(
                 edit_df,
@@ -348,15 +358,22 @@ def render_upload_tab():
                     "data": st.column_config.TextColumn("Data", disabled=True),
                     "descrição": st.column_config.TextColumn("Descrição", disabled=True),
                     "valor": st.column_config.TextColumn("Valor", disabled=True),
+                    "_idx": None,
                 },
                 use_container_width=True,
                 hide_index=True,
+                num_rows="dynamic",
                 height=420,
             )
 
             if st.button("Confirmar Entradas →", use_container_width=True):
-                df.loc[mask_in, "categoria"] = edited["categoria"].values
-                st.session_state.transactions_df = df
+                kept = edited["_idx"].dropna().astype(int).tolist()
+                deleted = [i for i in entradas.index if i not in kept]
+                df = df.drop(index=deleted)
+                for _, row in edited.iterrows():
+                    if pd.notna(row.get("_idx")):
+                        df.at[int(row["_idx"]), "categoria"] = row["categoria"]
+                st.session_state.transactions_df = df.reset_index(drop=True)
                 st.session_state.wizard_step = 3
                 st.rerun()
 
@@ -374,11 +391,13 @@ def render_upload_tab():
             st.subheader(f"Revisar Saídas ({len(saidas)} transações)")
             st.caption("Confirme ou corrija a categoria de cada gasto.")
 
-            categories = get_all_categories()
+            categories = _get_categories()
             edit_df = saidas[["date", "description", "value", "categoria"]].copy()
             edit_df["data"] = edit_df["date"].dt.strftime("%d/%m/%Y")
             edit_df["valor"] = edit_df["value"].abs().apply(_format_currency)
             edit_df = edit_df[["data", "description", "valor", "categoria"]].rename(columns={"description": "descrição"})
+
+            edit_df["_idx"] = saidas.index
 
             edited = st.data_editor(
                 edit_df,
@@ -387,15 +406,22 @@ def render_upload_tab():
                     "data": st.column_config.TextColumn("Data", disabled=True),
                     "descrição": st.column_config.TextColumn("Descrição", disabled=True),
                     "valor": st.column_config.TextColumn("Valor", disabled=True),
+                    "_idx": None,
                 },
                 use_container_width=True,
                 hide_index=True,
+                num_rows="dynamic",
                 height=420,
             )
 
             if st.button("Finalizar e Ver Dashboard →", use_container_width=True):
-                df.loc[mask_out, "categoria"] = edited["categoria"].values
-                st.session_state.transactions_df = df
+                kept = edited["_idx"].dropna().astype(int).tolist()
+                deleted = [i for i in saidas.index if i not in kept]
+                df = df.drop(index=deleted)
+                for _, row in edited.iterrows():
+                    if pd.notna(row.get("_idx")):
+                        df.at[int(row["_idx"]), "categoria"] = row["categoria"]
+                st.session_state.transactions_df = df.reset_index(drop=True)
                 st.rerun()
 
 
@@ -720,8 +746,28 @@ def render_transactions_tab():
         st.info("Carregue extratos na aba **Upload** para ver as transações.")
         return
 
-    categories = get_all_categories()
+    categories = _get_categories()
     df = df.copy()
+
+    with st.expander("➕ Gerenciar categorias"):
+        col_new, col_btn = st.columns([3, 1])
+        with col_new:
+            nova = st.text_input("Nome da nova categoria", key="nova_cat_input", label_visibility="collapsed", placeholder="Ex: Academia, Assinaturas...")
+        with col_btn:
+            if st.button("Adicionar", key="btn_add_cat"):
+                nome = nova.strip()
+                if nome and nome not in st.session_state.custom_categories and nome not in get_all_categories():
+                    st.session_state.custom_categories.append(nome)
+                    st.rerun()
+        custom = st.session_state.get("custom_categories", [])
+        if custom:
+            st.caption("Categorias criadas por você:")
+            for cat in list(custom):
+                c1, c2 = st.columns([5, 1])
+                c1.markdown(f"• {cat}")
+                if c2.button("✕", key=f"del_cat_{cat}"):
+                    st.session_state.custom_categories.remove(cat)
+                    st.rerun()
 
     st.subheader("Filtros")
     filter_col1, filter_col2, filter_col3 = st.columns(3)
@@ -772,30 +818,38 @@ def render_transactions_tab():
     display_df["Arquivo"] = display_df["source"]
     display_df["Categoria"] = display_df["categoria"]
 
+    display_df["_idx"] = filtered.index
+
     edited = st.data_editor(
-        display_df[["Data", "Descrição", "Valor", "Tipo", "Categoria", "Arquivo"]],
+        display_df[["Data", "Descrição", "Valor", "Tipo", "Categoria", "Arquivo", "_idx"]],
         use_container_width=True,
         hide_index=True,
         height=500,
+        num_rows="dynamic",
         column_config={
-            "Data": st.column_config.TextColumn("Data", width="small"),
-            "Descrição": st.column_config.TextColumn("Descrição", width="large"),
-            "Valor": st.column_config.TextColumn("Valor", width="small"),
-            "Tipo": st.column_config.TextColumn("Tipo", width="small"),
+            "Data": st.column_config.TextColumn("Data", width="small", disabled=True),
+            "Descrição": st.column_config.TextColumn("Descrição", width="large", disabled=True),
+            "Valor": st.column_config.TextColumn("Valor", width="small", disabled=True),
+            "Tipo": st.column_config.TextColumn("Tipo", width="small", disabled=True),
             "Categoria": st.column_config.SelectboxColumn(
                 "Categoria",
                 options=categories,
                 width="medium",
             ),
-            "Arquivo": st.column_config.TextColumn("Arquivo", width="medium"),
+            "Arquivo": st.column_config.TextColumn("Arquivo", width="medium", disabled=True),
+            "_idx": None,
         },
     )
 
-    if st.button("💾 Salvar alterações de categoria"):
-        for i, row in edited.iterrows():
-            original_idx = filtered.index[i]
-            st.session_state.transactions_df.at[original_idx, "categoria"] = row["Categoria"]
-        st.success("Categorias atualizadas!")
+    if st.button("💾 Salvar alterações"):
+        kept_idxs = edited["_idx"].dropna().astype(int).tolist()
+        deleted_idxs = [i for i in filtered.index if i not in kept_idxs]
+        main_df = st.session_state.transactions_df.drop(index=deleted_idxs)
+        for _, row in edited.iterrows():
+            if pd.notna(row.get("_idx")):
+                main_df.at[int(row["_idx"]), "categoria"] = row["Categoria"]
+        st.session_state.transactions_df = main_df.reset_index(drop=True)
+        st.success(f"✅ Salvo! {len(deleted_idxs)} excluída(s)." if deleted_idxs else "✅ Categorias atualizadas!")
         st.rerun()
 
     st.divider()
