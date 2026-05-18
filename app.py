@@ -322,67 +322,79 @@ def render_upload_tab():
     # ── Passo 2: Revisar Entradas ──
     elif step == 2:
         df = st.session_state.transactions_df
-        entradas = df[df["value"] > 0].copy()
+        mask_in = (df["value"] > 0) | (df["type"] == "credit")
+        entradas = df[mask_in].copy()
 
-        st.subheader(f"Revisar Entradas ({len(entradas)} transações)")
-        st.caption("Confirme ou corrija a categoria de cada receita.")
-
-        categories = get_all_categories()
-        edit_df = entradas[["date", "description", "value", "categoria"]].copy()
-        edit_df["data"] = edit_df["date"].dt.strftime("%d/%m/%Y")
-        edit_df["valor"] = edit_df["value"].apply(_format_currency)
-        edit_df = edit_df[["data", "description", "valor", "categoria"]].rename(columns={"description": "descrição"})
-
-        edited = st.data_editor(
-            edit_df,
-            column_config={
-                "categoria": st.column_config.SelectboxColumn("Categoria", options=categories, required=True),
-                "data": st.column_config.TextColumn("Data", disabled=True),
-                "descrição": st.column_config.TextColumn("Descrição", disabled=True),
-                "valor": st.column_config.TextColumn("Valor", disabled=True),
-            },
-            use_container_width=True,
-            hide_index=True,
-            height=420,
-        )
-
-        if st.button("Confirmar Entradas →", use_container_width=True):
-            df.loc[df["value"] > 0, "categoria"] = edited["categoria"].values
-            st.session_state.transactions_df = df
+        if entradas.empty:
+            st.info("Nenhuma entrada encontrada nos arquivos. Avançando para as saídas.")
             st.session_state.wizard_step = 3
             st.rerun()
+        else:
+            st.subheader(f"Revisar Entradas ({len(entradas)} transações)")
+            st.caption("Confirme ou corrija a categoria de cada receita.")
+
+            categories = get_all_categories()
+            edit_df = entradas[["date", "description", "value", "categoria"]].copy()
+            edit_df["data"] = edit_df["date"].dt.strftime("%d/%m/%Y")
+            edit_df["valor"] = edit_df["value"].abs().apply(_format_currency)
+            edit_df = edit_df[["data", "description", "valor", "categoria"]].rename(columns={"description": "descrição"})
+
+            edited = st.data_editor(
+                edit_df,
+                column_config={
+                    "categoria": st.column_config.SelectboxColumn("Categoria", options=categories, required=True),
+                    "data": st.column_config.TextColumn("Data", disabled=True),
+                    "descrição": st.column_config.TextColumn("Descrição", disabled=True),
+                    "valor": st.column_config.TextColumn("Valor", disabled=True),
+                },
+                use_container_width=True,
+                hide_index=True,
+                height=420,
+            )
+
+            if st.button("Confirmar Entradas →", use_container_width=True):
+                df.loc[mask_in, "categoria"] = edited["categoria"].values
+                st.session_state.transactions_df = df
+                st.session_state.wizard_step = 3
+                st.rerun()
 
     # ── Passo 3: Revisar Saídas ──
     elif step == 3:
         df = st.session_state.transactions_df
-        saidas = df[df["value"] <= 0].copy()
+        mask_out = (df["value"] <= 0) | (df["type"] == "debit")
+        saidas = df[mask_out].copy()
 
-        st.subheader(f"Revisar Saídas ({len(saidas)} transações)")
-        st.caption("Confirme ou corrija a categoria de cada gasto.")
+        if saidas.empty:
+            st.info("Nenhuma saída encontrada nos arquivos.")
+            if st.button("Ver Dashboard →", use_container_width=True):
+                st.rerun()
+        else:
+            st.subheader(f"Revisar Saídas ({len(saidas)} transações)")
+            st.caption("Confirme ou corrija a categoria de cada gasto.")
 
-        categories = get_all_categories()
-        edit_df = saidas[["date", "description", "value", "categoria"]].copy()
-        edit_df["data"] = edit_df["date"].dt.strftime("%d/%m/%Y")
-        edit_df["valor"] = edit_df["value"].apply(_format_currency)
-        edit_df = edit_df[["data", "description", "valor", "categoria"]].rename(columns={"description": "descrição"})
+            categories = get_all_categories()
+            edit_df = saidas[["date", "description", "value", "categoria"]].copy()
+            edit_df["data"] = edit_df["date"].dt.strftime("%d/%m/%Y")
+            edit_df["valor"] = edit_df["value"].abs().apply(_format_currency)
+            edit_df = edit_df[["data", "description", "valor", "categoria"]].rename(columns={"description": "descrição"})
 
-        edited = st.data_editor(
-            edit_df,
-            column_config={
-                "categoria": st.column_config.SelectboxColumn("Categoria", options=categories, required=True),
-                "data": st.column_config.TextColumn("Data", disabled=True),
-                "descrição": st.column_config.TextColumn("Descrição", disabled=True),
-                "valor": st.column_config.TextColumn("Valor", disabled=True),
-            },
-            use_container_width=True,
-            hide_index=True,
-            height=420,
-        )
+            edited = st.data_editor(
+                edit_df,
+                column_config={
+                    "categoria": st.column_config.SelectboxColumn("Categoria", options=categories, required=True),
+                    "data": st.column_config.TextColumn("Data", disabled=True),
+                    "descrição": st.column_config.TextColumn("Descrição", disabled=True),
+                    "valor": st.column_config.TextColumn("Valor", disabled=True),
+                },
+                use_container_width=True,
+                hide_index=True,
+                height=420,
+            )
 
-        if st.button("Finalizar e Ver Dashboard →", use_container_width=True):
-            df.loc[df["value"] <= 0, "categoria"] = edited["categoria"].values
-            st.session_state.transactions_df = df
-            st.rerun()
+            if st.button("Finalizar e Ver Dashboard →", use_container_width=True):
+                df.loc[mask_out, "categoria"] = edited["categoria"].values
+                st.session_state.transactions_df = df
+                st.rerun()
 
 
 # ── Tab: Dashboard ────────────────────────────────────────────────────────────
