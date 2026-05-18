@@ -5,6 +5,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as components
 from dotenv import load_dotenv
 
 from parsers.pdf_parser import parse_pdf
@@ -556,11 +557,9 @@ def render_inicio_tab():
     if df.empty and not historico:
         st.markdown("### Bem-vindo ao Pilotto")
         st.markdown("Seu assistente de finanças pessoais. Comece subindo o extrato do mês.")
-        st.html("""
-        <div style="margin-top:1rem;padding:1rem 1.5rem;background:#F0FDF4;border-radius:12px;border:1.5px solid #6EE7B7;font-family:Inter,sans-serif;color:#065F46;font-size:0.95rem">
-            👆 Clique na aba <strong>📤 Upload</strong> acima para começar
-        </div>
-        """)
+        if st.button("➕ Subir extrato agora", use_container_width=True):
+            st.session_state["_goto_upload"] = True
+            st.rerun()
         return
 
     if not df.empty:
@@ -879,3 +878,14 @@ with tab_transactions:
 
 with tab_historico:
     render_historico_tab()
+
+if st.session_state.get("_goto_upload"):
+    st.session_state["_goto_upload"] = False
+    components.html("""
+    <script>
+        setTimeout(function() {
+            var tabs = window.parent.document.querySelectorAll('[data-baseweb="tab"]');
+            if (tabs.length > 1) tabs[1].click();
+        }, 100);
+    </script>
+    """, height=0)
