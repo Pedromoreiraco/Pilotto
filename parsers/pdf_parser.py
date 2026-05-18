@@ -61,7 +61,7 @@ INCOME_KEYWORDS = [
 ]
 
 
-def _parse_value(raw: str) -> tuple[float, str | None]:
+def _parse_value(raw: str) -> tuple:
     raw = raw.strip().replace("R$", "").replace("\xa0", "").replace(" ", "")
     credit_flag = None
     if raw.upper().endswith("C"):
@@ -86,7 +86,7 @@ def _should_skip(description: str) -> bool:
     return any(kw in desc_lower for kw in SKIP_DESCRIPTION_KEYWORDS)
 
 
-def _infer_type_from_description(description: str) -> str | None:
+def _infer_type_from_description(description: str) -> Optional[str]:
     desc_lower = description.lower()
     if any(kw in desc_lower for kw in INCOME_KEYWORDS):
         return "credit"
@@ -252,12 +252,13 @@ def _parse_credit_card(text: str, year_hint: Optional[int]) -> list[dict]:
 
 
 def _is_credit_card_statement(text: str) -> bool:
-    indicators = [
-        "fatura", "cartão de crédito", "credito", "limite", "vencimento",
-        "pagamento mínimo", "pagamento minimo", "total da fatura",
-    ]
     text_lower = text.lower()
-    return sum(1 for ind in indicators if ind in text_lower) >= 2
+    strong = ["total da fatura", "número do cartão", "numero do cartao",
+              "pagamento mínimo", "pagamento minimo", "vencimento da fatura",
+              "fatura fechada", "fatura aberta", "data de vencimento"]
+    if any(s in text_lower for s in strong):
+        return True
+    return "fatura" in text_lower and "vencimento" in text_lower
 
 
 def _normalize_header(h: str) -> str:
