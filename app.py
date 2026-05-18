@@ -127,6 +127,7 @@ def _init_state():
         "api_key": os.getenv("ANTHROPIC_API_KEY", ""),
         "categorization_done": False,
         "wizard_step": 1,
+        "historico": [],
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -546,6 +547,168 @@ def render_dashboard_tab():
         st.plotly_chart(fig_trend, use_container_width=True)
 
 
+# ── Tab: Início ───────────────────────────────────────────────────────────────
+
+def render_inicio_tab():
+    df = st.session_state.transactions_df
+    historico = st.session_state.historico
+
+    if df.empty and not historico:
+        st.markdown("### Bem-vindo ao Pilotto 🛩️")
+        st.markdown("Seu assistente de finanças pessoais. Comece subindo o extrato do mês.")
+        if st.button("➕ Subir extrato agora", use_container_width=True):
+            st.session_state["_active_tab"] = "upload"
+            st.rerun()
+        return
+
+    if not df.empty:
+        receitas = df[df["value"] > 0]["value"].sum()
+        despesas = df[df["value"] <= 0]["value"].sum()
+        saldo = receitas + despesas
+        saldo_class = "metric-positive" if saldo >= 0 else "metric-negative"
+        saldo_color = "#00C853" if saldo >= 0 else "#F43F5E"
+
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.html(f"""<div class="metric-card metric-positive">
+                <div class="metric-label">Receitas do Mês</div>
+                <div class="metric-value value-positive">{_format_currency(receitas)}</div>
+            </div>""")
+        with c2:
+            st.html(f"""<div class="metric-card metric-negative">
+                <div class="metric-label">Despesas do Mês</div>
+                <div class="metric-value value-negative">{_format_currency(abs(despesas))}</div>
+            </div>""")
+        with c3:
+            st.html(f"""<div class="metric-card {saldo_class}">
+                <div class="metric-label">Saldo do Mês</div>
+                <div class="metric-value" style="color:{saldo_color}">{_format_currency(saldo)}</div>
+            </div>""")
+
+        st.divider()
+
+    if historico:
+        ultimo = historico[-1]
+        saldo_ult = ultimo["receitas"] - ultimo["despesas"]
+        saldo_color = "#00C853" if saldo_ult >= 0 else "#F43F5E"
+        st.markdown(f"**Último mês fechado:** {ultimo['mes']}")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.metric("Receitas", _format_currency(ultimo["receitas"]))
+        with c2:
+            st.metric("Despesas", _format_currency(ultimo["despesas"]))
+        with c3:
+            st.metric("Saldo", _format_currency(saldo_ult), delta=None)
+
+
+# ── Tab: Histórico ─────────────────────────────────────────────────────────────
+
+def render_historico_tab():
+    import json
+
+    st.header("📅 Histórico Mensal")
+
+    col_imp, col_exp = st.columns([1, 1])
+
+    with col_imp:
+        hist_file = st.file_uploader("Carregar histórico salvo (.json)", type=["json"], label_visibility="collapsed", key="hist_upload")
+        if hist_file:
+            try:
+                loaded = json.loads(hist_file.read())
+                st.session_state.historico = loaded
+                st.success(f"✅ {len(loaded)} meses carregados.")
+                st.rerun()
+            except Exception:
+                st.error("Arquivo inválido.")
+
+    historico = st.session_state.historico
+
+    df = st.session_state.transactions_df
+    if not df.empty:
+        st.divider()
+        st.subheader("Fechar mês atual")
+        meses_disponiveis = sorted(df["date"].dt.to_period("M").unique(), reverse=True)
+        mes_opts = [str(m) for m in meses_disponiveis]
+        mes_sel = st.selectbox("Selecione o mês para fechar", mes_opts)
+
+        if st.button(f"Fechar {mes_sel} e salvar no histórico", use_container_width=True):
+            period = pd.Period(mes_sel, "M")
+            df_mes = df[df["date"].dt.to_period("M") == period]
+            receitas = float(df_mes[df_mes["value"] > 0]["value"].sum())
+            despesas = float(abs(df_mes[df_mes["value"] <= 0]["value"].sum()))
+            top_cats = (
+                df_mes[df_mes["value"] <= 0]
+                .groupby("categoria")["value"]
+                .sum()
+                .abs()
+                .sort_values(ascending=False)
+                .head(3)
+                .to_dict()
+            )
+            entry = {
+                "mes": mes_sel,
+                "receitas": receitas,
+                "despesas": despesas,
+                "saldo": receitas - despesas,
+                "top_categorias": {k: round(v, 2) for k, v in top_cats.items()},
+            }
+            existing = [h for h in historico if h["mes"] != mes_sel]
+            existing.append(entry)
+            existing.sort(key=lambda x: x["mes"])
+            st.session_state.historico = existing
+            st.success(f"✅ {mes_sel} fechado e salvo no histórico!")
+            st.rerun()
+
+    st.divider()
+
+    if not historico:
+        st.info("Nenhum mês fechado ainda. Suba um extrato e clique em **Fechar mês** acima.")
+        return
+
+    with col_exp:
+        hist_json = json.dumps(historico, ensure_ascii=False, indent=2)
+        st.download_button(
+            "⬇️ Exportar histórico (.json)",
+            data=hist_json,
+            file_name="pilotto_historico.json",
+            mime="application/json",
+            use_container_width=True,
+        )
+
+    for entry in reversed(historico):
+        saldo = entry["saldo"]
+        saldo_color = "#00C853" if saldo >= 0 else "#F43F5E"
+        top_str = "  •  ".join(
+            f"{cat}: {_format_currency(v)}" for cat, v in entry.get("top_categorias", {}).items()
+        )
+        st.html(f"""
+        <div class="metric-card" style="margin-bottom:0.75rem">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+                <div style="font-family:Inter,sans-serif;font-weight:700;font-size:1.05rem">{entry["mes"]}</div>
+                <div style="font-family:Inter,sans-serif;font-weight:800;font-size:1.1rem;color:{saldo_color}">{_format_currency(saldo)}</div>
+            </div>
+            <div style="display:flex;gap:2rem;margin-top:0.4rem;font-family:Inter,sans-serif;font-size:0.85rem;color:#6B7280">
+                <span>🟢 Receitas: {_format_currency(entry["receitas"])}</span>
+                <span>🔴 Despesas: {_format_currency(entry["despesas"])}</span>
+            </div>
+            {"<div style='margin-top:0.35rem;font-family:Inter,sans-serif;font-size:0.8rem;color:#9CA3AF'>" + top_str + "</div>" if top_str else ""}
+        </div>
+        """)
+
+    if len(historico) >= 2:
+        st.divider()
+        st.subheader("Evolução")
+        hist_df = pd.DataFrame(historico)
+        fig = px.bar(
+            hist_df.melt(id_vars="mes", value_vars=["receitas", "despesas"], var_name="tipo", value_name="valor"),
+            x="mes", y="valor", color="tipo", barmode="group",
+            color_discrete_map={"receitas": "#00C853", "despesas": "#F43F5E"},
+            labels={"mes": "Mês", "valor": "R$", "tipo": ""},
+        )
+        fig.update_layout(plot_bgcolor="white", paper_bgcolor="white", font_family="Inter")
+        st.plotly_chart(fig, use_container_width=True)
+
+
 # ── Tab: Transações ───────────────────────────────────────────────────────────
 
 def render_transactions_tab():
@@ -696,9 +859,12 @@ st.html("""
 </div>
 """)
 
-tab_upload, tab_dashboard, tab_transactions = st.tabs(
-    ["📤 Upload", "📊 Dashboard", "📋 Transações"]
+tab_inicio, tab_upload, tab_dashboard, tab_transactions, tab_historico = st.tabs(
+    ["🏠 Início", "📤 Upload", "📊 Dashboard", "📋 Transações", "📅 Histórico"]
 )
+
+with tab_inicio:
+    render_inicio_tab()
 
 with tab_upload:
     render_upload_tab()
@@ -708,3 +874,6 @@ with tab_dashboard:
 
 with tab_transactions:
     render_transactions_tab()
+
+with tab_historico:
+    render_historico_tab()
