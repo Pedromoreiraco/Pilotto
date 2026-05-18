@@ -160,13 +160,18 @@ def parse_excel(file_path: str) -> list[dict]:
                 break
 
     if not desc_col:
+        best_col = None
+        best_score = -1
         for col in df.columns:
             if col == date_col:
                 continue
-            sample = df[col].dropna().head(5)
-            if all(isinstance(v, str) and len(str(v)) > 3 for v in sample):
-                desc_col = col
-                break
+            sample = df[col].dropna().head(10)
+            text_vals = [str(v) for v in sample if not str(v).replace(" ", "").isdigit()]
+            score = sum(len(v) for v in text_vals)
+            if score > best_score and len(text_vals) >= 2:
+                best_score = score
+                best_col = col
+        desc_col = best_col
 
     if not value_col and not (debit_col and credit_col):
         for col in df.columns:
@@ -205,7 +210,7 @@ def parse_excel(file_path: str) -> list[dict]:
         elif value_col:
             value = _parse_value(row.get(value_col))
 
-        if value is None:
+        if value is None or value == 0:
             continue
 
         description = re.sub(r"\s+", " ", description).strip()

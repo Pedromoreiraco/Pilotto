@@ -37,6 +37,9 @@ def normalize_transactions(
         except (TypeError, ValueError):
             continue
 
+        if value == 0:
+            continue
+
         tx_type = t.get("type", "debit" if value < 0 else "credit")
 
         rows.append({

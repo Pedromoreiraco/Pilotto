@@ -347,7 +347,7 @@ def render_upload_tab():
     # ── Passo 2: Revisar Entradas ──
     elif step == 2:
         df = st.session_state.transactions_df
-        mask_in = (df["value"] > 0) | (df["type"] == "credit")
+        mask_in = df["value"] > 0
         entradas = df[mask_in].copy()
 
         if entradas.empty:
@@ -395,7 +395,7 @@ def render_upload_tab():
     # ── Passo 3: Revisar Saídas ──
     elif step == 3:
         df = st.session_state.transactions_df
-        mask_out = (df["value"] <= 0) | (df["type"] == "debit")
+        mask_out = df["value"] < 0
         saidas = df[mask_out].copy()
 
         if saidas.empty:
