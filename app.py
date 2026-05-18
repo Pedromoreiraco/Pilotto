@@ -32,21 +32,21 @@ st.markdown(
 
     /* ── Sidebar ── */
     section[data-testid="stSidebar"] {
-        background: linear-gradient(160deg, #1E1B4B 0%, #312E81 100%);
+        background: linear-gradient(160deg, #022C22 0%, #064E3B 100%);
     }
     section[data-testid="stSidebar"] * {
-        color: #EDE9FE !important;
+        color: #D1FAE5 !important;
     }
     section[data-testid="stSidebar"] .stTextInput input {
         background: rgba(255,255,255,0.08) !important;
-        border: 1px solid rgba(167,139,250,0.3) !important;
-        color: #EDE9FE !important;
+        border: 1px solid rgba(0,200,83,0.3) !important;
+        color: #D1FAE5 !important;
         border-radius: 8px;
     }
 
     /* ── Header ── */
     .pilotto-header {
-        background: linear-gradient(135deg, #7C3AED 0%, #06B6D4 100%);
+        background: linear-gradient(135deg, #00C853 0%, #00897B 100%);
         border-radius: 16px;
         padding: 2rem 2.5rem;
         margin-bottom: 1.5rem;
@@ -71,13 +71,13 @@ st.markdown(
         background: #FFFFFF;
         border-radius: 14px;
         padding: 1.25rem 1.5rem;
-        border: 1px solid #EDE9FE;
-        box-shadow: 0 2px 12px rgba(124,58,237,0.07);
-        border-left: 4px solid #C4B5FD;
+        border: 1px solid #D1FAE5;
+        box-shadow: 0 2px 12px rgba(0,200,83,0.07);
+        border-left: 4px solid #6EE7B7;
     }
-    .metric-positive { border-left-color: #10B981; }
+    .metric-positive { border-left-color: #00C853; }
     .metric-negative { border-left-color: #F43F5E; }
-    .metric-neutral  { border-left-color: #7C3AED; }
+    .metric-neutral  { border-left-color: #00897B; }
     .metric-label {
         font-size: 0.78rem;
         font-weight: 600;
@@ -108,7 +108,7 @@ st.markdown(
         font-weight: 600 !important;
         border-radius: 10px !important;
         border: none !important;
-        background: linear-gradient(135deg, #7C3AED, #06B6D4) !important;
+        background: linear-gradient(135deg, #00C853, #00897B) !important;
         color: white !important;
         padding: 0.5rem 1.5rem !important;
         transition: opacity 0.2s;
@@ -117,9 +117,9 @@ st.markdown(
 
     /* ── Upload area ── */
     [data-testid="stFileUploader"] {
-        border: 2px dashed #C4B5FD !important;
+        border: 2px dashed #6EE7B7 !important;
         border-radius: 14px !important;
-        background: #F5F3FF !important;
+        background: #F0FDF4 !important;
     }
     </style>
     """,
