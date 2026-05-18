@@ -24,18 +24,103 @@ st.set_page_config(
 
 st.markdown(
     """
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-    .metric-card {
-        background: #f8f9fa;
-        border-radius: 10px;
-        padding: 1rem 1.5rem;
-        border-left: 4px solid #dee2e6;
+    html, body, [class*="css"] {
+        font-family: 'Inter', sans-serif;
     }
-    .metric-positive { border-left-color: #28a745; }
-    .metric-negative { border-left-color: #dc3545; }
-    .metric-neutral  { border-left-color: #6c757d; }
-    .value-positive { color: #28a745; font-weight: 600; }
-    .value-negative { color: #dc3545; font-weight: 600; }
+
+    /* ── Sidebar ── */
+    section[data-testid="stSidebar"] {
+        background: linear-gradient(160deg, #1E1B4B 0%, #312E81 100%);
+    }
+    section[data-testid="stSidebar"] * {
+        color: #EDE9FE !important;
+    }
+    section[data-testid="stSidebar"] .stTextInput input {
+        background: rgba(255,255,255,0.08) !important;
+        border: 1px solid rgba(167,139,250,0.3) !important;
+        color: #EDE9FE !important;
+        border-radius: 8px;
+    }
+
+    /* ── Header ── */
+    .pilotto-header {
+        background: linear-gradient(135deg, #7C3AED 0%, #06B6D4 100%);
+        border-radius: 16px;
+        padding: 2rem 2.5rem;
+        margin-bottom: 1.5rem;
+        color: white;
+    }
+    .pilotto-header h1 {
+        font-size: 2.2rem;
+        font-weight: 800;
+        margin: 0;
+        letter-spacing: -0.5px;
+        color: white !important;
+    }
+    .pilotto-header p {
+        margin: 0.25rem 0 0;
+        font-size: 1rem;
+        opacity: 0.85;
+        color: white !important;
+    }
+
+    /* ── Metric cards ── */
+    .metric-card {
+        background: #FFFFFF;
+        border-radius: 14px;
+        padding: 1.25rem 1.5rem;
+        border: 1px solid #EDE9FE;
+        box-shadow: 0 2px 12px rgba(124,58,237,0.07);
+        border-left: 4px solid #C4B5FD;
+    }
+    .metric-positive { border-left-color: #10B981; }
+    .metric-negative { border-left-color: #F43F5E; }
+    .metric-neutral  { border-left-color: #7C3AED; }
+    .metric-label {
+        font-size: 0.78rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #6B7280;
+        margin-bottom: 0.4rem;
+    }
+    .metric-value {
+        font-size: 1.75rem;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+        color: #0F172A;
+    }
+    .value-positive { color: #10B981; }
+    .value-negative { color: #F43F5E; }
+
+    /* ── Tabs ── */
+    button[data-baseweb="tab"] {
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 600 !important;
+        font-size: 0.9rem !important;
+    }
+
+    /* ── Buttons ── */
+    .stButton > button {
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 600 !important;
+        border-radius: 10px !important;
+        border: none !important;
+        background: linear-gradient(135deg, #7C3AED, #06B6D4) !important;
+        color: white !important;
+        padding: 0.5rem 1.5rem !important;
+        transition: opacity 0.2s;
+    }
+    .stButton > button:hover { opacity: 0.88; }
+
+    /* ── Upload area ── */
+    [data-testid="stFileUploader"] {
+        border: 2px dashed #C4B5FD !important;
+        border-radius: 14px !important;
+        background: #F5F3FF !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -553,9 +638,14 @@ def render_transactions_tab():
 
 # ── Main layout ───────────────────────────────────────────────────────────────
 
-st.title("🛩️ Pilotto")
 st.markdown(
-    "Analise seus extratos bancários e faturas de cartão de crédito de forma simples e inteligente."
+    """
+    <div class="pilotto-header">
+        <h1>🛩️ Pilotto</h1>
+        <p>Seu dinheiro no pilotto automático — analise extratos, categorize gastos e entenda seu mês.</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 
 tab_upload, tab_dashboard, tab_transactions = st.tabs(
