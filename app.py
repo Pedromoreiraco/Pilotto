@@ -310,11 +310,14 @@ def render_upload_tab():
                     st.session_state.transactions_df = combined
                     st.session_state.categorization_done = True
 
-                    n_in = (combined["value"] > 0).sum()
-                    n_out = (combined["value"] <= 0).sum()
-                    st.success(f"✅ {len(combined)} transações reconhecidas — {n_in} entradas, {n_out} saídas.")
-                    st.session_state.wizard_step = 2
-                    st.rerun()
+        df = st.session_state.transactions_df
+        if not df.empty:
+            n_in = (df["value"] > 0).sum()
+            n_out = (df["value"] <= 0).sum()
+            st.success(f"✅ {len(df)} transações reconhecidas — {n_in} entradas, {n_out} saídas.")
+            if st.button("Classificar Transações →", use_container_width=True):
+                st.session_state.wizard_step = 2
+                st.rerun()
 
     # ── Passo 2: Revisar Entradas ──
     elif step == 2:
