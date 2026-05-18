@@ -260,6 +260,99 @@ def _is_credit_card_statement(text: str) -> bool:
     return sum(1 for ind in indicators if ind in text_lower) >= 2
 
 
+def _normalize_header(h: str) -> str:
+    import unicodedata
+    h = unicodedata.normalize("NFD", str(h or ""))
+    h = "".join(c for c in h if unicodedata.category(c) != "Mn")
+    return h.lower().strip()
+
+
+def _parse_table(file_path: str, year_hint: Optional[int]) -> list[dict]:
+    transactions = []
+    try:
+        with pdfplumber.open(file_path) as pdf:
+            for page in pdf.pages:
+                for table in page.extract_tables():
+                    if not table or len(table) < 2:
+                        continue
+                    header_idx = None
+                    header = None
+                    for i, row in enumerate(table):
+                        norm = [_normalize_header(c) for c in (row or [])]
+                        if any("historico" in c or "descri" in c or "lancamento" in c for c in norm):
+                            if any("data" in c for c in norm):
+                                header_idx = i
+                                header = norm
+                                break
+                    if header is None:
+                        continue
+
+                    def col(keywords):
+                        for kw in keywords:
+                            for i, h in enumerate(header):
+                                if kw in h:
+                                    return i
+                        return None
+
+                    i_date = col(["data"])
+                    i_desc = col(["historico", "descricao", "descri", "lancamento"])
+                    i_cred = col(["credito", "credit", "entrada"])
+                    i_deb  = col(["debito", "debit", "saida"])
+                    i_val  = col(["valor"]) if (i_cred is None and i_deb is None) else None
+
+                    if i_date is None or i_desc is None:
+                        continue
+
+                    for row in table[header_idx + 1:]:
+                        if not row:
+                            continue
+                        def cell(i):
+                            if i is None or i >= len(row):
+                                return ""
+                            return str(row[i] or "").strip()
+
+                        date = _parse_date(cell(i_date), year_hint)
+                        if not date:
+                            continue
+                        description = re.sub(r"\s+", " ", cell(i_desc)).strip()
+                        if not description or len(description) < 2 or _should_skip(description):
+                            continue
+
+                        value = None
+                        if i_cred is not None and i_deb is not None:
+                            cred_raw = cell(i_cred)
+                            deb_raw  = cell(i_deb)
+                            if cred_raw and re.search(r"\d", cred_raw):
+                                try:
+                                    v, _ = _parse_value(cred_raw)
+                                    value = abs(v)
+                                except ValueError:
+                                    pass
+                            elif deb_raw and re.search(r"\d", deb_raw):
+                                try:
+                                    v, _ = _parse_value(deb_raw)
+                                    value = -abs(v)
+                                except ValueError:
+                                    pass
+                        elif i_val is not None:
+                            raw = cell(i_val)
+                            if raw and re.search(r"\d", raw):
+                                try:
+                                    v, type_hint = _parse_value(raw)
+                                    inferred = type_hint or _infer_type_from_description(description)
+                                    value = abs(v) if inferred == "credit" else -abs(v)
+                                except ValueError:
+                                    pass
+
+                        if value is None or value == 0:
+                            continue
+                        tx_type = "credit" if value > 0 else "debit"
+                        transactions.append({"date": date, "description": description, "value": value, "type": tx_type})
+    except Exception:
+        pass
+    return transactions
+
+
 def parse_pdf(file_path: str) -> list[dict]:
     try:
         full_text = ""
@@ -277,6 +370,10 @@ def parse_pdf(file_path: str) -> list[dict]:
     year_hint = _extract_year_from_text(full_text)
     bank = _detect_bank(full_text)
     is_cc = _is_credit_card_statement(full_text)
+
+    table_transactions = _parse_table(file_path, year_hint)
+    if table_transactions:
+        return table_transactions
 
     if is_cc:
         transactions = _parse_credit_card(full_text, year_hint)
