@@ -17,7 +17,7 @@ load_dotenv()
 
 st.set_page_config(
     page_title="Pilotto",
-    page_icon="🛩️",
+    page_icon="💚",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -444,7 +444,7 @@ def render_dashboard_tab():
     with col3:
         delta_color = "normal" if saldo >= 0 else "inverse"
         st.metric(
-            label="🛩️ Saldo do Mês",
+            label="Saldo do Mês",
             value=_format_currency(saldo),
             delta=f"{'positivo' if saldo >= 0 else 'negativo'}",
             delta_color=delta_color,
@@ -554,11 +554,13 @@ def render_inicio_tab():
     historico = st.session_state.historico
 
     if df.empty and not historico:
-        st.markdown("### Bem-vindo ao Pilotto 🛩️")
+        st.markdown("### Bem-vindo ao Pilotto")
         st.markdown("Seu assistente de finanças pessoais. Comece subindo o extrato do mês.")
-        if st.button("➕ Subir extrato agora", use_container_width=True):
-            st.session_state["_active_tab"] = "upload"
-            st.rerun()
+        st.html("""
+        <div style="margin-top:1rem;padding:1rem 1.5rem;background:#F0FDF4;border-radius:12px;border:1.5px solid #6EE7B7;font-family:Inter,sans-serif;color:#065F46;font-size:0.95rem">
+            👆 Clique na aba <strong>📤 Upload</strong> acima para começar
+        </div>
+        """)
         return
 
     if not df.empty:
@@ -854,7 +856,7 @@ def render_transactions_tab():
 
 st.html("""
 <div class="pilotto-header">
-    <h1>🛩️ Pilotto</h1>
+    <h1>Pilotto</h1>
     <p>Seu dinheiro no pilotto automático — analise extratos, categorize gastos e entenda seu mês.</p>
 </div>
 """)
