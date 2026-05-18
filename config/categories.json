@@ -1,0 +1,12 @@
+{
+  "Alimentação": ["restaurante", "ifood", "rappi", "padaria", "supermercado", "mercado", "açougue", "feira", "lanchonete", "pizzaria", "hamburger", "sushi", "churrasco", "bar ", "boteco", "cafe", "café", "panificadora", "confeitaria", "sorveteria"],
+  "Transporte": ["uber", "99", "combustível", "gasolina", "posto", "estacionamento", "pedágio", "ônibus", "metrô", "cabify", "táxi", "passagem", "bilhete único", "condutor", "auto posto", "shell", "ipiranga", "br distribuidora"],
+  "Moradia": ["aluguel", "condomínio", "luz", "água", "gás", "internet", "energia", "enel", "sabesp", "comgas", "copasa", "cemig", "eletropaulo", "net ", "vivo fibra", "claro net", "tim live", "portaria", "zelador", "limpeza"],
+  "Saúde": ["farmácia", "drogaria", "médico", "consulta", "hospital", "laboratório", "plano de saúde", "unimed", "amil", "bradesco saude", "sulamerica", "dentista", "odonto", "clinica", "exame", "remedios", "remédio", "ultrafarma", "droga"],
+  "Lazer": ["cinema", "teatro", "netflix", "spotify", "amazon prime", "steam", "jogo", "viagem", "hotel", "pousada", "ingresso", "show", "parque", "clube", "academia", "gym", "smartfit", "totalpass", "deezer", "youtube premium", "disney", "hbo"],
+  "Compras": ["amazon", "mercado livre", "shopee", "magazine", "americanas", "renner", "zara", "shopping", "hering", "c&a", "riachuelo", "centauro", "netshoes", "kabum", "ponto frio", "casas bahia", "extra ", "carrefour", "via varejo"],
+  "Educação": ["curso", "escola", "faculdade", "livro", "udemy", "alura", "coursera", "duolingo", "descomplica", "estácio", "anhanguera", "kroton", "pearson", "saraiva", "cultura", "fnac", "papelaria"],
+  "Serviços": ["telefone", "celular", "vivo", "claro", "tim", "oi", "seguro", "cartório", "banco", "taxa", "tarifa", "anuidade", "administração", "sinistro", "porto seguro", "bradesco seguros", "sulamérica"],
+  "Receita": ["salário", "pagamento", "transferência recebida", "pix recebido", "renda", "freelance", "honorário", "provento", "dividendo", "rendimento", "restituição", "reembolso", "cashback", "crédito em conta"],
+  "Outros": []
+}
