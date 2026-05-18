@@ -22,109 +22,100 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-st.markdown(
-    """
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-    html, body, [class*="css"] {
-        font-family: 'Inter', sans-serif;
-    }
+st.html("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
-    /* ── Sidebar ── */
-    section[data-testid="stSidebar"] {
-        background: linear-gradient(160deg, #022C22 0%, #064E3B 100%);
-    }
-    section[data-testid="stSidebar"] * {
-        color: #D1FAE5 !important;
-    }
-    section[data-testid="stSidebar"] .stTextInput input {
-        background: rgba(255,255,255,0.08) !important;
-        border: 1px solid rgba(0,200,83,0.3) !important;
-        color: #D1FAE5 !important;
-        border-radius: 8px;
-    }
+html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 
-    /* ── Header ── */
-    .pilotto-header {
-        background: linear-gradient(135deg, #00C853 0%, #00897B 100%);
-        border-radius: 16px;
-        padding: 2rem 2.5rem;
-        margin-bottom: 1.5rem;
-        color: white;
-    }
-    .pilotto-header h1 {
-        font-size: 2.2rem;
-        font-weight: 800;
-        margin: 0;
-        letter-spacing: -0.5px;
-        color: white !important;
-    }
-    .pilotto-header p {
-        margin: 0.25rem 0 0;
-        font-size: 1rem;
-        opacity: 0.85;
-        color: white !important;
-    }
+section[data-testid="stSidebar"] {
+    background: linear-gradient(160deg, #022C22 0%, #064E3B 100%);
+}
+section[data-testid="stSidebar"] * { color: #D1FAE5 !important; }
+section[data-testid="stSidebar"] .stTextInput input {
+    background: rgba(255,255,255,0.08) !important;
+    border: 1px solid rgba(0,200,83,0.3) !important;
+    color: #D1FAE5 !important;
+    border-radius: 8px;
+}
 
-    /* ── Metric cards ── */
-    .metric-card {
-        background: #FFFFFF;
-        border-radius: 14px;
-        padding: 1.25rem 1.5rem;
-        border: 1px solid #D1FAE5;
-        box-shadow: 0 2px 12px rgba(0,200,83,0.07);
-        border-left: 4px solid #6EE7B7;
-    }
-    .metric-positive { border-left-color: #00C853; }
-    .metric-negative { border-left-color: #F43F5E; }
-    .metric-neutral  { border-left-color: #00897B; }
-    .metric-label {
-        font-size: 0.78rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: #6B7280;
-        margin-bottom: 0.4rem;
-    }
-    .metric-value {
-        font-size: 1.75rem;
-        font-weight: 800;
-        letter-spacing: -0.5px;
-        color: #0F172A;
-    }
-    .value-positive { color: #10B981; }
-    .value-negative { color: #F43F5E; }
+.pilotto-header {
+    background: linear-gradient(135deg, #00C853 0%, #00897B 100%);
+    border-radius: 16px;
+    padding: 2rem 2.5rem;
+    margin-bottom: 1.5rem;
+}
+.pilotto-header h1 {
+    font-family: 'Inter', sans-serif;
+    font-size: 2.2rem;
+    font-weight: 800;
+    margin: 0;
+    letter-spacing: -0.5px;
+    color: white;
+}
+.pilotto-header p {
+    font-family: 'Inter', sans-serif;
+    margin: 0.25rem 0 0;
+    font-size: 1rem;
+    opacity: 0.85;
+    color: white;
+}
 
-    /* ── Tabs ── */
-    button[data-baseweb="tab"] {
-        font-family: 'Inter', sans-serif !important;
-        font-weight: 600 !important;
-        font-size: 0.9rem !important;
-    }
+.metric-card {
+    background: #FFFFFF;
+    border-radius: 14px;
+    padding: 1.25rem 1.5rem;
+    border: 1px solid #D1FAE5;
+    box-shadow: 0 2px 12px rgba(0,200,83,0.07);
+    border-left: 4px solid #6EE7B7;
+}
+.metric-positive { border-left-color: #00C853; }
+.metric-negative { border-left-color: #F43F5E; }
+.metric-neutral  { border-left-color: #00897B; }
+.metric-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #6B7280;
+    margin-bottom: 0.4rem;
+}
+.metric-value {
+    font-family: 'Inter', sans-serif;
+    font-size: 1.75rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: #0F172A;
+}
+.value-positive { color: #00C853; }
+.value-negative { color: #F43F5E; }
 
-    /* ── Buttons ── */
-    .stButton > button {
-        font-family: 'Inter', sans-serif !important;
-        font-weight: 600 !important;
-        border-radius: 10px !important;
-        border: none !important;
-        background: linear-gradient(135deg, #00C853, #00897B) !important;
-        color: white !important;
-        padding: 0.5rem 1.5rem !important;
-        transition: opacity 0.2s;
-    }
-    .stButton > button:hover { opacity: 0.88; }
+button[data-baseweb="tab"] {
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 600 !important;
+    font-size: 0.9rem !important;
+}
 
-    /* ── Upload area ── */
-    [data-testid="stFileUploader"] {
-        border: 2px dashed #6EE7B7 !important;
-        border-radius: 14px !important;
-        background: #F0FDF4 !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+.stButton > button {
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 600 !important;
+    border-radius: 10px !important;
+    border: none !important;
+    background: linear-gradient(135deg, #00C853, #00897B) !important;
+    color: white !important;
+    padding: 0.5rem 1.5rem !important;
+    transition: opacity 0.2s;
+}
+.stButton > button:hover { opacity: 0.88; }
+
+[data-testid="stFileUploader"] {
+    border: 2px dashed #6EE7B7 !important;
+    border-radius: 14px !important;
+    background: #F0FDF4 !important;
+}
+</style>
+""")
 
 
 # ── Session state initialisation ────────────────────────────────────────────
@@ -638,15 +629,12 @@ def render_transactions_tab():
 
 # ── Main layout ───────────────────────────────────────────────────────────────
 
-st.markdown(
-    """
-    <div class="pilotto-header">
-        <h1>🛩️ Pilotto</h1>
-        <p>Seu dinheiro no pilotto automático — analise extratos, categorize gastos e entenda seu mês.</p>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+st.html("""
+<div class="pilotto-header">
+    <h1>🛩️ Pilotto</h1>
+    <p>Seu dinheiro no pilotto automático — analise extratos, categorize gastos e entenda seu mês.</p>
+</div>
+""")
 
 tab_upload, tab_dashboard, tab_transactions = st.tabs(
     ["📤 Upload", "📊 Dashboard", "📋 Transações"]
