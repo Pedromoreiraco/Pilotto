@@ -361,18 +361,17 @@ def render_upload_tab():
             categories = _get_categories()
             edit_df = entradas[["date", "description", "value", "categoria"]].copy()
             edit_df["data"] = edit_df["date"].dt.strftime("%d/%m/%Y")
-            edit_df["valor"] = edit_df["value"].abs().apply(_format_currency)
+            edit_df["valor"] = edit_df["value"].abs()
             edit_df = edit_df[["data", "description", "valor", "categoria"]].rename(columns={"description": "descrição"})
-
             edit_df["_idx"] = entradas.index
 
             edited = st.data_editor(
                 edit_df,
                 column_config={
-                    "categoria": st.column_config.SelectboxColumn("Categoria", options=categories, required=True),
                     "data": st.column_config.TextColumn("Data", disabled=True),
                     "descrição": st.column_config.TextColumn("Descrição", disabled=True),
-                    "valor": st.column_config.TextColumn("Valor", disabled=True),
+                    "valor": st.column_config.NumberColumn("Valor (R$)", format="R$ %.2f"),
+                    "categoria": st.column_config.SelectboxColumn("Categoria", options=categories, required=True),
                     "_idx": None,
                 },
                 use_container_width=True,
@@ -387,7 +386,9 @@ def render_upload_tab():
                 df = df.drop(index=deleted)
                 for _, row in edited.iterrows():
                     if pd.notna(row.get("_idx")):
-                        df.at[int(row["_idx"]), "categoria"] = row["categoria"]
+                        idx = int(row["_idx"])
+                        df.at[idx, "categoria"] = row["categoria"]
+                        df.at[idx, "value"] = abs(row["valor"])
                 st.session_state.transactions_df = df.reset_index(drop=True)
                 st.session_state.wizard_step = 3
                 st.rerun()
@@ -409,18 +410,17 @@ def render_upload_tab():
             categories = _get_categories()
             edit_df = saidas[["date", "description", "value", "categoria"]].copy()
             edit_df["data"] = edit_df["date"].dt.strftime("%d/%m/%Y")
-            edit_df["valor"] = edit_df["value"].abs().apply(_format_currency)
+            edit_df["valor"] = edit_df["value"].abs()
             edit_df = edit_df[["data", "description", "valor", "categoria"]].rename(columns={"description": "descrição"})
-
             edit_df["_idx"] = saidas.index
 
             edited = st.data_editor(
                 edit_df,
                 column_config={
-                    "categoria": st.column_config.SelectboxColumn("Categoria", options=categories, required=True),
                     "data": st.column_config.TextColumn("Data", disabled=True),
                     "descrição": st.column_config.TextColumn("Descrição", disabled=True),
-                    "valor": st.column_config.TextColumn("Valor", disabled=True),
+                    "valor": st.column_config.NumberColumn("Valor (R$)", format="R$ %.2f"),
+                    "categoria": st.column_config.SelectboxColumn("Categoria", options=categories, required=True),
                     "_idx": None,
                 },
                 use_container_width=True,
@@ -435,7 +435,9 @@ def render_upload_tab():
                 df = df.drop(index=deleted)
                 for _, row in edited.iterrows():
                     if pd.notna(row.get("_idx")):
-                        df.at[int(row["_idx"]), "categoria"] = row["categoria"]
+                        idx = int(row["_idx"])
+                        df.at[idx, "categoria"] = row["categoria"]
+                        df.at[idx, "value"] = -abs(row["valor"])
                 st.session_state.transactions_df = df.reset_index(drop=True)
                 st.rerun()
 
@@ -828,15 +830,12 @@ def render_transactions_tab():
     display_df = filtered.copy()
     display_df["Data"] = display_df["date"].dt.strftime("%d/%m/%Y")
     display_df["Descrição"] = display_df["description"]
-    display_df["Valor"] = display_df["value"].apply(_format_currency)
-    display_df["Tipo"] = display_df["type"].map({"debit": "Débito", "credit": "Crédito"})
-    display_df["Arquivo"] = display_df["source"]
+    display_df["Valor (R$)"] = display_df["value"]
     display_df["Categoria"] = display_df["categoria"]
-
     display_df["_idx"] = filtered.index
 
     edited = st.data_editor(
-        display_df[["Data", "Descrição", "Valor", "Tipo", "Categoria", "Arquivo", "_idx"]],
+        display_df[["Data", "Descrição", "Valor (R$)", "Categoria", "_idx"]],
         use_container_width=True,
         hide_index=True,
         height=500,
@@ -844,14 +843,13 @@ def render_transactions_tab():
         column_config={
             "Data": st.column_config.TextColumn("Data", width="small", disabled=True),
             "Descrição": st.column_config.TextColumn("Descrição", width="large", disabled=True),
-            "Valor": st.column_config.TextColumn("Valor", width="small", disabled=True),
-            "Tipo": st.column_config.TextColumn("Tipo", width="small", disabled=True),
-            "Categoria": st.column_config.SelectboxColumn(
-                "Categoria",
-                options=categories,
-                width="medium",
+            "Valor (R$)": st.column_config.NumberColumn(
+                "Valor (R$)",
+                format="R$ %.2f",
+                width="small",
+                help="Positivo = entrada, negativo = saída",
             ),
-            "Arquivo": st.column_config.TextColumn("Arquivo", width="medium", disabled=True),
+            "Categoria": st.column_config.SelectboxColumn("Categoria", options=categories, width="medium"),
             "_idx": None,
         },
     )
@@ -862,9 +860,11 @@ def render_transactions_tab():
         main_df = st.session_state.transactions_df.drop(index=deleted_idxs)
         for _, row in edited.iterrows():
             if pd.notna(row.get("_idx")):
-                main_df.at[int(row["_idx"]), "categoria"] = row["Categoria"]
+                idx = int(row["_idx"])
+                main_df.at[idx, "categoria"] = row["Categoria"]
+                main_df.at[idx, "value"] = row["Valor (R$)"]
         st.session_state.transactions_df = main_df.reset_index(drop=True)
-        st.success(f"✅ Salvo! {len(deleted_idxs)} excluída(s)." if deleted_idxs else "✅ Categorias atualizadas!")
+        st.success(f"✅ Salvo! {len(deleted_idxs)} excluída(s)." if deleted_idxs else "✅ Alterações salvas!")
         st.rerun()
 
     st.divider()
