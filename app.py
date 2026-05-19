@@ -392,7 +392,7 @@ def render_upload_tab():
                     "data": st.column_config.TextColumn("Data", disabled=True),
                     "descrição": st.column_config.TextColumn("Descrição", disabled=True),
                     "valor": st.column_config.NumberColumn("Valor (R$)", format="R$ %.2f"),
-                    "categoria": st.column_config.SelectboxColumn("Categoria", options=categories, required=True),
+                    "categoria": st.column_config.TextColumn("Categoria", help="Digite ou edite a categoria — novas serão salvas automaticamente"),
                     "_idx": None,
                 },
                 use_container_width=True,
@@ -405,10 +405,16 @@ def render_upload_tab():
                 kept = edited["_idx"].dropna().astype(int).tolist()
                 deleted = [i for i in entradas.index if i not in kept]
                 df = df.drop(index=deleted)
+                existing = _get_categories()
                 for _, row in edited.iterrows():
                     if pd.notna(row.get("_idx")):
                         idx = int(row["_idx"])
-                        df.at[idx, "categoria"] = row["categoria"]
+                        cat = str(row["categoria"]).strip() if pd.notna(row.get("categoria")) else "Receita"
+                        if cat and cat not in existing:
+                            st.session_state.custom_categories.append(cat)
+                            st.session_state.category_types[cat] = "Entrada"
+                            existing.append(cat)
+                        df.at[idx, "categoria"] = cat
                         df.at[idx, "value"] = abs(row["valor"])
                 st.session_state.transactions_df = df.reset_index(drop=True)
                 st.session_state.wizard_step = 3
@@ -441,7 +447,7 @@ def render_upload_tab():
                     "data": st.column_config.TextColumn("Data", disabled=True),
                     "descrição": st.column_config.TextColumn("Descrição", disabled=True),
                     "valor": st.column_config.NumberColumn("Valor (R$)", format="R$ %.2f"),
-                    "categoria": st.column_config.SelectboxColumn("Categoria", options=categories, required=True),
+                    "categoria": st.column_config.TextColumn("Categoria", help="Digite ou edite a categoria — novas serão salvas automaticamente"),
                     "_idx": None,
                 },
                 use_container_width=True,
@@ -454,10 +460,16 @@ def render_upload_tab():
                 kept = edited["_idx"].dropna().astype(int).tolist()
                 deleted = [i for i in saidas.index if i not in kept]
                 df = df.drop(index=deleted)
+                existing = _get_categories()
                 for _, row in edited.iterrows():
                     if pd.notna(row.get("_idx")):
                         idx = int(row["_idx"])
-                        df.at[idx, "categoria"] = row["categoria"]
+                        cat = str(row["categoria"]).strip() if pd.notna(row.get("categoria")) else "Outros"
+                        if cat and cat not in existing:
+                            st.session_state.custom_categories.append(cat)
+                            st.session_state.category_types[cat] = "Saída"
+                            existing.append(cat)
+                        df.at[idx, "categoria"] = cat
                         df.at[idx, "value"] = -abs(row["valor"])
                 st.session_state.transactions_df = df.reset_index(drop=True)
                 st.rerun()
@@ -938,7 +950,7 @@ def render_transactions_tab():
                 width="small",
                 help="Positivo = entrada, negativo = saída",
             ),
-            "Categoria": st.column_config.SelectboxColumn("Categoria", options=categories, width="medium"),
+            "Categoria": st.column_config.TextColumn("Categoria", width="medium", help="Digite ou edite — novas categorias são salvas automaticamente"),
             "_idx": None,
         },
     )
@@ -947,10 +959,16 @@ def render_transactions_tab():
         kept_idxs = edited["_idx"].dropna().astype(int).tolist()
         deleted_idxs = [i for i in filtered.index if i not in kept_idxs]
         main_df = st.session_state.transactions_df.drop(index=deleted_idxs)
+        existing = _get_categories()
         for _, row in edited.iterrows():
             if pd.notna(row.get("_idx")):
                 idx = int(row["_idx"])
-                main_df.at[idx, "categoria"] = row["Categoria"]
+                cat = str(row["Categoria"]).strip() if pd.notna(row.get("Categoria")) else "Outros"
+                if cat and cat not in existing:
+                    st.session_state.custom_categories.append(cat)
+                    st.session_state.category_types[cat] = "Saída"
+                    existing.append(cat)
+                main_df.at[idx, "categoria"] = cat
                 main_df.at[idx, "value"] = row["Valor (R$)"]
         st.session_state.transactions_df = main_df.reset_index(drop=True)
         st.success(f"✅ Salvo! {len(deleted_idxs)} excluída(s)." if deleted_idxs else "✅ Alterações salvas!")
