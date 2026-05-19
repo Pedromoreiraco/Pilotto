@@ -262,6 +262,53 @@ def _apply_categorization(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _extract_favorecido(description: str) -> str:
+    """Extrai o nome do pagador ou recebedor a partir da descrição da transação."""
+    if not description:
+        return ""
+    desc = description.strip()
+
+    patterns = [
+        # PIX / TED / DOC recebido de NOME
+        r"(?:pix|ted|doc)\s+(?:recebido|recebida)\s+de\s+(.+?)(?:\s*[-–|/]|\s*cpf\b|\s*\d{3}\.|\s*$)",
+        # PIX / TED / DOC enviado / para NOME
+        r"(?:pix|ted|doc)\s+(?:enviado|enviada)?\s*(?:para\s+)?(.+?)(?:\s*[-–|/]|\s*cpf\b|\s*\d{3}\.|\s*$)",
+        # Transferência recebida de / para NOME
+        r"transfer[eê]ncia\s+recebida\s+de\s+(.+?)(?:\s*[-–|/]|\s*\d|$)",
+        r"transfer[eê]ncia\s+(?:para|enviada\s+para)\s+(.+?)(?:\s*[-–|/]|\s*\d|$)",
+        # Formatos "TIPO - NOME" (Bradesco, Itaú)
+        r"^(?:pix|ted|doc|pagamento)\s*[-–]\s*(.+?)(?:\s*[-–]|\s*$)",
+        # Compra débito / crédito NOME
+        r"^compra\s+(?:cart[aã]o\s+)?(?:d[eé]bito|cr[eé]dito)?\s*[-–]?\s*(.+?)(?:\s*[-–]|\s*$)",
+        # Pagamento para / de NOME
+        r"^pagamento\s+(?:a\s+|para\s+|de\s+)?(.+?)(?:\s*[-–|/]|\s*\d|$)",
+        # Débito automático NOME
+        r"^d[eé]bito\s+(?:autom[aá]tico\s+)?(.+?)(?:\s*[-–]|\s*$)",
+    ]
+
+    for pattern in patterns:
+        m = re.search(pattern, desc, re.IGNORECASE)
+        if m:
+            name = m.group(1).strip()
+            # Remove CPF/CNPJ inline
+            name = re.sub(r"\s*cpf.*$", "", name, flags=re.IGNORECASE)
+            name = re.sub(r"\s*\d{3}\.\d{3}\.\d{3}-\d{2}.*$", "", name)
+            name = re.sub(r"\s*\d{2}\.\d{3}\.\d{3}.*$", "", name)
+            name = name.strip("-– /").strip()
+            if len(name) > 2:
+                return name.title()
+
+    # Fallback: segundo segmento após " - "
+    if " - " in desc:
+        parts = desc.split(" - ")
+        for part in parts[1:]:
+            part = part.strip()
+            if len(part) > 3 and not re.match(r"^\d", part):
+                return part.title()
+
+    return ""
+
+
 def _format_currency(value: float) -> str:
     return f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
@@ -330,6 +377,12 @@ def render_upload_tab():
                             [st.session_state.transactions_df, combined], ignore_index=True
                         ).drop_duplicates(subset=["date", "description", "value"]).reset_index(drop=True)
 
+                    # Extrai favorecido para linhas ainda sem ele
+                    if "favorecido" not in combined.columns:
+                        combined["favorecido"] = ""
+                    mask_fav = combined["favorecido"].isna() | (combined["favorecido"] == "")
+                    combined.loc[mask_fav, "favorecido"] = combined.loc[mask_fav, "description"].apply(_extract_favorecido)
+
                     with st.spinner("Categorizando automaticamente..."):
                         if "categoria" not in combined.columns:
                             combined["categoria"] = None
@@ -381,9 +434,10 @@ def render_upload_tab():
 
             categories = _categories_by_type("Entrada")
             edit_df = entradas[["date", "description", "value", "categoria"]].copy()
+            edit_df["favorecido"] = entradas.get("favorecido", pd.Series("", index=entradas.index)).values
             edit_df["data"] = edit_df["date"].dt.strftime("%d/%m/%Y")
             edit_df["valor"] = edit_df["value"].abs()
-            edit_df = edit_df[["data", "description", "valor", "categoria"]].rename(columns={"description": "descrição"})
+            edit_df = edit_df[["data", "description", "favorecido", "valor", "categoria"]].rename(columns={"description": "descrição"})
             edit_df["_idx"] = entradas.index
 
             edited = st.data_editor(
@@ -391,6 +445,7 @@ def render_upload_tab():
                 column_config={
                     "data": st.column_config.TextColumn("Data", disabled=True),
                     "descrição": st.column_config.TextColumn("Descrição", disabled=True),
+                    "favorecido": st.column_config.TextColumn("Origem", disabled=True),
                     "valor": st.column_config.NumberColumn("Valor (R$)", format="R$ %.2f"),
                     "categoria": st.column_config.TextColumn("Categoria", help="Digite ou edite a categoria — novas serão salvas automaticamente"),
                     "_idx": None,
@@ -436,9 +491,10 @@ def render_upload_tab():
 
             categories = _categories_by_type("Saída")
             edit_df = saidas[["date", "description", "value", "categoria"]].copy()
+            edit_df["favorecido"] = saidas.get("favorecido", pd.Series("", index=saidas.index)).values
             edit_df["data"] = edit_df["date"].dt.strftime("%d/%m/%Y")
             edit_df["valor"] = edit_df["value"].abs()
-            edit_df = edit_df[["data", "description", "valor", "categoria"]].rename(columns={"description": "descrição"})
+            edit_df = edit_df[["data", "description", "favorecido", "valor", "categoria"]].rename(columns={"description": "descrição"})
             edit_df["_idx"] = saidas.index
 
             edited = st.data_editor(
@@ -446,6 +502,7 @@ def render_upload_tab():
                 column_config={
                     "data": st.column_config.TextColumn("Data", disabled=True),
                     "descrição": st.column_config.TextColumn("Descrição", disabled=True),
+                    "favorecido": st.column_config.TextColumn("Destino", disabled=True),
                     "valor": st.column_config.NumberColumn("Valor (R$)", format="R$ %.2f"),
                     "categoria": st.column_config.TextColumn("Categoria", help="Digite ou edite a categoria — novas serão salvas automaticamente"),
                     "_idx": None,
@@ -931,12 +988,13 @@ def render_transactions_tab():
     display_df = filtered.copy()
     display_df["Data"] = display_df["date"].dt.strftime("%d/%m/%Y")
     display_df["Descrição"] = display_df["description"]
+    display_df["Origem / Destino"] = display_df.get("favorecido", pd.Series("", index=display_df.index)).fillna("")
     display_df["Valor (R$)"] = display_df["value"]
     display_df["Categoria"] = display_df["categoria"]
     display_df["_idx"] = filtered.index
 
     edited = st.data_editor(
-        display_df[["Data", "Descrição", "Valor (R$)", "Categoria", "_idx"]],
+        display_df[["Data", "Descrição", "Origem / Destino", "Valor (R$)", "Categoria", "_idx"]],
         use_container_width=True,
         hide_index=True,
         height=500,
@@ -944,6 +1002,7 @@ def render_transactions_tab():
         column_config={
             "Data": st.column_config.TextColumn("Data", width="small", disabled=True),
             "Descrição": st.column_config.TextColumn("Descrição", width="large", disabled=True),
+            "Origem / Destino": st.column_config.TextColumn("Origem / Destino", width="medium", disabled=True),
             "Valor (R$)": st.column_config.NumberColumn(
                 "Valor (R$)",
                 format="R$ %.2f",
@@ -979,15 +1038,18 @@ def render_transactions_tab():
     if st.button("📥 Exportar para Excel", use_container_width=False):
         export_df = filtered.copy()
         export_df["data"] = export_df["date"].dt.strftime("%d/%m/%Y")
+        if "favorecido" not in export_df.columns:
+            export_df["favorecido"] = ""
         export_df = export_df.rename(columns={
             "description": "descrição",
             "value": "valor",
             "type": "tipo",
             "source": "arquivo",
             "categoria": "categoria",
+            "favorecido": "origem / destino",
         })
         export_df["tipo"] = export_df["tipo"].map({"debit": "Débito", "credit": "Crédito"})
-        export_df = export_df[["data", "descrição", "valor", "tipo", "categoria", "arquivo"]]
+        export_df = export_df[["data", "descrição", "origem / destino", "valor", "tipo", "categoria", "arquivo"]]
 
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
@@ -1007,7 +1069,7 @@ def render_transactions_tab():
                 cell.font = header_font
                 cell.alignment = Alignment(horizontal="center")
 
-            col_widths = {"data": 14, "descrição": 50, "valor": 16, "tipo": 12, "categoria": 18, "arquivo": 30}
+            col_widths = {"data": 14, "descrição": 50, "origem / destino": 28, "valor": 16, "tipo": 12, "categoria": 18, "arquivo": 30}
             for col_idx, col_name in enumerate(export_df.columns, 1):
                 width = col_widths.get(col_name, 20)
                 worksheet.column_dimensions[get_column_letter(col_idx)].width = width
