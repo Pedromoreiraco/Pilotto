@@ -1,5 +1,6 @@
 import os
 import io
+import re
 import tempfile
 import pandas as pd
 import plotly.express as px
